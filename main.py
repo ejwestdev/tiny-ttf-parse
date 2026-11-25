@@ -1,26 +1,45 @@
+import ctypes
 import os
 
 
-# byte readers:
 def main():
     path = "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf"
     f = open(path, "rb")  # noqa: SIM115
+    parser = FontParser(f)
+    # read header and skip scaler type (4)
+    parser.skip_bytes(ctypes.sizeof(ctypes.c_uint32))
+    num_tables = parser.read_uint16()  # uint16_t
 
-    jump_to(f, 3)
+    # skip searchRange, entrySelector, rangeShift
+    parser.skip_bytes(ctypes.sizeof(ctypes.c_uint16) * 3)
 
+    # read table directory:
+    directory = {}
+    for _ in range(num_tables):
+        bytes_len = 4
+        tag = parser.file.read(bytes_len)
+        if len(tag) != bytes_len:
+            raise EOFError("unexpected EOF while reading table tag")
+        checkSum, offset, length = (
+            parser.read_uint32(),
+            parser.read_uint32(),
+            parser.read_uint32(),
+        )
 
-def skip_bytes(data, bytes_to_skip):
-    data.seek(bytes_to_skip, os.SEEK_CUR)
-
-
-def jump_to(data, byte_offset):
-    data.seek(byte_offset, os.SEEK_SET)
+        directory[tag] = (checkSum, offset, length)
 
 
 class FontParser:
     def __init__(self, file):
         self.file = file
 
+    def skip_bytes(self, bytes_to_skip):
+        self.file.seek(bytes_to_skip, os.SEEK_CUR)
+
+    def jump_to(self, byte_offset):
+        self.file.seek(byte_offset, os.SEEK_SET)
+
+    # byte readers:
     def read_be(self, num_bytes, *, signed=False):
         data = self.file.read(num_bytes)
         if len(data) != num_bytes:
