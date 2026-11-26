@@ -41,7 +41,39 @@ def main():
         if glyph_code_to_offset[i] == glyph_code_to_offset[i + 1]:
             glyph_code_to_offset[i] = 0
 
-    print(glyph_code_to_offset)
+    # hhea, hmtx tables
+    parser.jump_to(directory[b"hhea"].offset)
+    parser.skip_bytes(4)
+    ascent = parser.read_int16()
+    descent = parser.read_int16()
+    font_metric = FontMetric(ascent, descent)
+
+    # load glyph metrics map:
+    parser.jump_to(directory[b"hhea"].offset)
+    parser.skip_bytes(34)  # skips to numOflongHorMetrics
+    num_of_metrics = parser.read_uint16()
+    parser.jump_to(directory[b"hmtx"].offset)
+    glyph_metric = []
+    for _ in range(num_of_metrics):
+        width = parser.read_uint16()
+        lsb = parser.read_int16()
+        glyph_metric.append(Metric(width, lsb))
+    last_width = glyph_metric[-1].width
+    for _ in range(num_glyphs - num_of_metrics):
+        lsb = parser.read_int16()
+        glyph_metric.append(Metric(last_width, lsb))
+
+
+@dataclass
+class Metric:
+    width: int
+    lsb: int
+
+
+@dataclass
+class FontMetric:
+    ascent: int
+    descent: int
 
 
 @dataclass
